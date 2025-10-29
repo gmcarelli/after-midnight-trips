@@ -1,7 +1,7 @@
 import os
 import ollama
 from dotenv import load_dotenv
-from typing import Optional, Mapping, Any
+from typing import Optional, Mapping, Any, Dict
 
 class OllamaClient:
     """
@@ -23,14 +23,11 @@ class OllamaClient:
             if not host:
                 raise ValueError("A variável de ambiente OLLAMA_HOST não foi definida.")
 
-            # Tenta conectar e inicializar o cliente
             self.client = ollama.Client(host=host)
-            # Verifica a conexão listando os modelos (uma operação leve)
             self.client.list()
             print("Cliente Ollama inicializado e conexão com o host bem-sucedida.")
 
         except Exception as e:
-            # Garante que o cliente seja None em caso de qualquer falha na conexão
             self.client = None
             print(f"ERRO CRÍTICO: Não foi possível conectar ao host Ollama em '{host}'.")
             print(f"Detalhes do erro: {e}")
@@ -38,19 +35,12 @@ class OllamaClient:
     def create_custom_model(self, profile_name: str, base_model: str, system_role: str, temperature: float = 0.7) -> None:
         """
         Cria um novo modelo personalizado no host Ollama com base em um perfil.
-
-        Args:
-            profile_name (str): O nome que o novo modelo terá (ex: 'analista').
-            base_model (str): O nome do modelo base a ser usado (ex: 'llama3').
-            system_role (str): A instrução de sistema para o modelo.
-            temperature (float): A temperatura padrão para o modelo.
         """
         if not self.client:
             print("Operação cancelada: O cliente Ollama não está conectado.")
             return
 
         try:
-            # Passa os parâmetros diretamente para o método create
             parameters: Mapping[str, Any] = {"temperature": temperature}
 
             self.client.create(
@@ -63,3 +53,32 @@ class OllamaClient:
 
         except Exception as e:
             print(f"Erro ao criar o modelo '{profile_name}': {e}")
+
+def query_model(connector: OllamaClient, model_name: str, prompt: str) -> Optional[str]:
+    """
+    Função genérica para conversar com um modelo e retornar a resposta.
+    """
+    if not connector.client:
+        print("Chat cancelado: O cliente Ollama não está conectado.")
+        return None
+
+    try:
+        print(f"\\n--- Conversando com o modelo: {model_name} ---")
+        print(f"Prompt: {prompt[:100]}...")
+
+        messages = [{'role': 'user', 'content': prompt}]
+        response: Dict[str, Any] = connector.client.chat(model=model_name, messages=messages)
+
+        response_content = response.get('message', {}).get('content')
+
+        if response_content:
+            print(f"\\n[Resposta de {model_name}]:")
+            print(response_content)
+            return response_content
+        else:
+            print("Nenhuma resposta recebida do modelo.")
+            return None
+
+    except Exception as e:
+        print(f"Erro ao conversar com o modelo '{model_name}'. Ele existe no host? Erro: {e}")
+        return None
