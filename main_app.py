@@ -26,12 +26,9 @@ def main() -> None:
     SYSTEM_ROLE = "Você é um especialista em resumir textos técnicos de forma clara e concisa."
 
     # 2. Inicialização do cliente e dos gerenciadores
-    try:
-        # Instancia e conecta o cliente Ollama
-        ollama_client = OllamaClient().connect_to_host(OLLAMA_HOST)
-    except Exception:
-        # A função connect_to_host já loga o erro, então apenas encerramos.
-        return
+    # O `connect_to_host` agora lança `OllamaConnectionError` se a conexão falhar,
+    # interrompendo o script automaticamente. Não é mais necessário o try/except.
+    ollama_client = OllamaClient().connect_to_host(OLLAMA_HOST)
 
     # Injeta o cliente nos outros módulos
     model_manager = ModelManager(tools=ollama_client)

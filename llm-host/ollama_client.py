@@ -5,6 +5,11 @@ from llm_host.llm_tools import LLMTools
 from logger_config import log
 
 
+class OllamaConnectionError(Exception):
+    """Exceção personalizada para erros de conexão com o host Ollama."""
+    pass
+
+
 class OllamaClient(HostConnector, LLMTools):
     """
     Cliente concreto para interagir com o host Ollama.
@@ -20,12 +25,15 @@ class OllamaClient(HostConnector, LLMTools):
         """
         try:
             self._client = ollama.Client(host=host_url)
+            # A biblioteca Ollama não valida a conexão no __init__,
+            # então fazemos uma chamada leve para forçar a verificação.
+            self._client.list()
             log.info(f"Cliente Ollama conectado com sucesso ao host: {host_url}")
             return self
         except Exception as e:
-            log.error(f"Não foi possível conectar ao servidor Ollama em {host_url}.")
-            log.error(f"Detalhes do erro: {e}")
-            raise
+            error_message = f"Não foi possível conectar ao servidor Ollama em {host_url}. Detalhes: {e}"
+            log.error(error_message)
+            raise OllamaConnectionError(error_message) from e
 
     def create_model(self, base_model: str, model_name: str, system_role: str) -> bool:
         """
