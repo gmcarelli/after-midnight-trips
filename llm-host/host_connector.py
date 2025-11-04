@@ -1,13 +1,11 @@
 from typing import Protocol, TypeVar, Generic
-import ollama
-from logger_config import log
 
 TClient = TypeVar("TClient", covariant=True)
 
 
 class HostConnector(Protocol, Generic[TClient]):
-    def connect_to_host(self, host_url) -> TClient: ...
 
+    def connect_to_host(self, host_url: str) -> TClient: ...
 
 class OllamaClient(HostConnector):
             
@@ -22,4 +20,8 @@ class OllamaClient(HostConnector):
             log.error(f"Detalhes do erro: {e}")
             raise
             
+def main() -> None:
+  pass
 
+if __name__ == "__main__":
+    main()
