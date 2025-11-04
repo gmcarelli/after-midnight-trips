@@ -1,9 +1,9 @@
-from typing import Protocol, Generic, TypeVar
+from typing import Protocol, List, Dict, Any
 
-TClient = TypeVar("TClient", covariant=True)
+class LLMTools(Protocol):
 
-class LLMTools(Protocol, Generic[TClient]):
+    def create_model(self, base_model: str, model_name: str, system_role: str) -> bool: ...
     
-    def create_model(self, base_model: str, model_name: str) -> bool: ...
+    def list_models(self) -> List[Dict[str, Any]]: ...
     
     def chat(self, model_name: str, message: str) -> str: ...
