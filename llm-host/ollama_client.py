@@ -1,31 +1,16 @@
 import ollama
 from typing import List, Dict, Any
-from llm_host.host_connector import HostConnector
 from llm_host.llm_tools import LLMTools
+from llm_host.ollama_connector import OllamaConnector
 from logger_config import log
 
-
-class OllamaClient(HostConnector, LLMTools):
+class OllamaOperations(LLMTools):
     """
-    Cliente concreto para interagir com o host Ollama.
-    Implementa as interfaces HostConnector e LLMTools.
+    Implementa as operações de negócio (chat, criar modelo, etc.)
+    usando um cliente Ollama já conectado.
     """
-
-    _client: ollama.Client
-
-    def connect_to_host(self, host_url: str) -> "OllamaClient":
-        """
-        Conecta-se ao host Ollama e inicializa o cliente.
-        Retorna a própria instância do cliente para encadeamento de chamadas.
-        """
-        try:
-            self._client = ollama.Client(host=host_url)
-            log.info(f"Cliente Ollama conectado com sucesso ao host: {host_url}")
-            return self
-        except Exception as e:
-            log.error(f"Não foi possível conectar ao servidor Ollama em {host_url}.")
-            log.error(f"Detalhes do erro: {e}")
-            raise
+    def __init__(self, client: ollama.Client):
+        self._client = client
 
     def create_model(self, base_model: str, model_name: str, system_role: str) -> bool:
         """
@@ -70,3 +55,15 @@ class OllamaClient(HostConnector, LLMTools):
         except Exception as e:
             log.error(f"Erro durante o chat com o modelo '{model_name}': {e}")
             return ""
+
+
+class OllamaClient:
+    """
+    Fachada para interagir com o host Ollama.
+    Gerencia a conexão e fornece um objeto de operações.
+    """
+    def __init__(self, host_url: str):
+        self._host_url = host_url
+        self._connector = OllamaConnector()
+        self._client = self._connector.connect_to_host(self._host_url)
+        self.operations = OllamaOperations(self._client)
