@@ -1,31 +1,51 @@
 import ollama
 from typing import List, Dict, Any
+
+from llm_host.host_connector import HostConnector
 from llm_host.llm_tools import LLMTools
-from llm_host.ollama_connector import OllamaConnector
 from logger_config import log
 
-class OllamaOperations(LLMTools):
+class OllamaConnectionError(Exception):
+    """Exceção personalizada para erros de conexão com o host Ollama."""
+    pass
+
+class OllamaClient(HostConnector, LLMTools):
     """
-    Implementa as operações de negócio (chat, criar modelo, etc.)
-    usando um cliente Ollama já conectado.
+    Cliente unificado para interagir com o host Ollama.
+
+    Esta classe gerencia a conexão e fornece métodos para todas as operações
+    relacionadas ao Ollama, seguindo uma abordagem de fachada simples.
     """
-    def __init__(self, client: ollama.Client):
-        self._client = client
+    def __init__(self, host_url: str):
+        self._host_url = host_url
+        self._client: ollama.Client = self._connect_to_host()
+
+    def _connect_to_host(self) -> ollama.Client:
+        """
+        Método privado para estabelecer a conexão durante a inicialização.
+        """
+        try:
+            client = ollama.Client(host=self._host_url)
+            # Força a verificação da conexão com uma chamada leve.
+            client.list()
+            log.info(f"Conexão com o host Ollama em {self._host_url} bem-sucedida.")
+            return client
+        except Exception as e:
+            error_message = f"Não foi possível conectar ao servidor Ollama em {self._host_url}. Detalhes: {e}"
+            log.error(error_message)
+            raise OllamaConnectionError(error_message) from e
 
     def create_model(self, base_model: str, model_name: str, system_role: str) -> bool:
         """
         Cria um modelo personalizado no Ollama.
-        Retorna True se o modelo foi criado com sucesso, False caso contrário.
         """
         try:
             modelfile = f"FROM {base_model}\nSYSTEM {system_role}"
             self._client.create(model=model_name, modelfile=modelfile)
-            log.info(
-                f"Modelo personalizado '{model_name}' criado com sucesso a partir do modelo base '{base_model}'."
-            )
+            log.info(f"Modelo '{model_name}' criado com sucesso a partir de '{base_model}'.")
             return True
         except Exception as e:
-            log.error(f"Erro ao criar o modelo personalizado '{model_name}': {e}")
+            log.error(f"Erro ao criar o modelo '{model_name}': {e}")
             return False
 
     def list_models(self) -> List[Dict[str, Any]]:
@@ -33,9 +53,7 @@ class OllamaOperations(LLMTools):
         Lista os modelos disponíveis no host Ollama.
         """
         try:
-            models = self._client.list().get("models", [])
-            log.info(f"Encontrados {len(models)} modelos no host.")
-            return models
+            return self._client.list().get("models", [])
         except Exception as e:
             log.error(f"Erro ao listar os modelos: {e}")
             return []
@@ -45,25 +63,8 @@ class OllamaOperations(LLMTools):
         Envia uma mensagem para o modelo de chat e retorna a resposta.
         """
         try:
-            log.info(f"Enviando prompt para o modelo '{model_name}'...")
-            response = self._client.chat(
-                model=model_name, messages=[{"role": "user", "content": message}]
-            )
-            content = response.get("message", {}).get("content", "")
-            log.info("Resposta recebida do modelo.")
-            return content
+            response = self._client.chat(model=model_name, messages=[{"role": "user", "content": message}])
+            return response.get("message", {}).get("content", "")
         except Exception as e:
             log.error(f"Erro durante o chat com o modelo '{model_name}': {e}")
             return ""
-
-
-class OllamaClient:
-    """
-    Fachada para interagir com o host Ollama.
-    Gerencia a conexão e fornece um objeto de operações.
-    """
-    def __init__(self, host_url: str):
-        self._host_url = host_url
-        self._connector = OllamaConnector()
-        self._client = self._connector.connect_to_host(self._host_url)
-        self.operations = OllamaOperations(self._client)
