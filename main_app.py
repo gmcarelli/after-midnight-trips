@@ -4,6 +4,7 @@ from typing import List, Optional
 
 # Importações da nova arquitetura
 from llm_host.ollama_client import OllamaClient
+from llm_host.ollama_connector import OllamaConnectionError
 from llm_host.model_manager import ModelManager
 from llm_host.chat_session import ChatSession
 import tools
@@ -25,22 +26,26 @@ def main() -> None:
     BASE_MODEL = "gemma2"
     SYSTEM_ROLE = "Você é um especialista em resumir textos técnicos de forma clara e concisa."
 
-    # 2. Inicialização do cliente e dos gerenciadores
-    # O `connect_to_host` agora lança `OllamaConnectionError` se a conexão falhar,
-    # interrompendo o script automaticamente. Não é mais necessário o try/except.
-    ollama_client = OllamaClient().connect_to_host(OLLAMA_HOST)
+    # 2. Inicialização do cliente
+    # A classe OllamaClient agora lida com a conexão em seu construtor.
+    # Se a conexão falhar, ela lançará OllamaConnectionError e interromperá o script.
+    try:
+        ollama_client = OllamaClient(host_url=OLLAMA_HOST)
+    except OllamaConnectionError:
+        # O erro já foi logado pelo conector, então apenas encerramos a execução.
+        return
 
-    # Injeta o cliente nos outros módulos
-    model_manager = ModelManager(tools=ollama_client)
-    chat_session = ChatSession(tools=ollama_client, model_name=MODEL_NAME)
+    # 3. Injetar o objeto de operações nos outros módulos
+    model_manager = ModelManager(tools=ollama_client.operations)
+    chat_session = ChatSession(tools=ollama_client.operations, model_name=MODEL_NAME)
 
-    # 3. Listar modelos para verificação (opcional)
+    # 4. Listar modelos para verificação (opcional)
     log.info("Modelos disponíveis no host:")
     available_models = model_manager.list_models()
     for model in available_models:
         log.info(f"- {model.get('name')}")
 
-    # 4. Criar o modelo personalizado, se necessário
+    # 5. Criar o modelo personalizado, se necessário
     model_exists = any(model.get('name') == f"{MODEL_NAME}:latest" for model in available_models)
     if not model_exists:
         log.info(f"Criando o modelo personalizado '{MODEL_NAME}'...")
@@ -54,7 +59,7 @@ def main() -> None:
         log.info(f"Modelo '{MODEL_NAME}' já existe. Pulando a criação.")
 
 
-    # 5. Processar arquivos PDF em lote
+    # 6. Processar arquivos PDF em lote
     log.info("Iniciando o processamento de arquivos PDF...")
     pdf_directory: str = 'data'
     pdf_files: List[str] = tools.get_pdf_files_from_directory(pdf_directory)
@@ -63,7 +68,7 @@ def main() -> None:
         log.warning(f"Nenhum arquivo PDF encontrado em '{pdf_directory}'. Encerrando.")
         return
 
-    # 6. Iterar e processar cada PDF
+    # 7. Iterar e processar cada PDF
     for pdf_path in pdf_files:
         log.info(f"--- Processando arquivo: {pdf_path} ---")
         pdf_prompt: Optional[str] = tools.read_pdf_first_page(pdf_path)
