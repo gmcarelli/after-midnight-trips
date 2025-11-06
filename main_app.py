@@ -2,8 +2,9 @@ import os
 from dotenv import load_dotenv
 from typing import List, Optional
 
-# Importa o cliente unificado e o erro de conexão pela fachada do pacote
-from llm_host import OllamaClient, OllamaConnectionError
+# Importações da nova arquitetura
+from llm_host.ollama_client import OllamaClient
+from llm_host.ollama_connector import OllamaConnectionError
 from llm_host.model_manager import ModelManager
 from llm_host.chat_session import ChatSession
 import tools
@@ -26,18 +27,19 @@ def main() -> None:
     SYSTEM_ROLE = "Você é um especialista em resumir textos técnicos de forma clara e concisa."
 
     # 2. Inicialização do cliente
-    # A conexão é feita no construtor. Lança OllamaConnectionError em caso de falha.
+    # A classe OllamaClient agora lida com a conexão em seu construtor.
+    # Se a conexão falhar, ela lançará OllamaConnectionError e interromperá o script.
     try:
         ollama_client = OllamaClient(host_url=OLLAMA_HOST)
     except OllamaConnectionError:
-        # O erro já foi logado, então apenas encerramos.
+        # O erro já foi logado pelo conector, então apenas encerramos a execução.
         return
 
-    # 3. Injetar o cliente unificado nos outros módulos (que esperam LLMTools)
-    model_manager = ModelManager(tools=ollama_client)
-    chat_session = ChatSession(tools=ollama_client, model_name=MODEL_NAME)
+    # 3. Injetar o objeto de operações nos outros módulos
+    model_manager = ModelManager(tools=ollama_client.operations)
+    chat_session = ChatSession(tools=ollama_client.operations, model_name=MODEL_NAME)
 
-    # 4. Listar modelos para verificação
+    # 4. Listar modelos para verificação (opcional)
     log.info("Modelos disponíveis no host:")
     available_models = model_manager.list_models()
     for model in available_models:
@@ -72,10 +74,15 @@ def main() -> None:
         pdf_prompt: Optional[str] = tools.read_pdf_first_page(pdf_path)
 
         if pdf_prompt:
+            # a. Chamar o modelo através da sessão de chat
             resposta: str = chat_session.chat_with_model(pdf_prompt)
+
             if resposta:
+                # b. Determinar o nome do arquivo de saída
                 base_filename: str = os.path.splitext(os.path.basename(pdf_path))[0]
                 output_filename: str = f"{base_filename}.txt"
+
+                # c. Criar o payload e salvar
                 payload = tools.SavePayload(
                     output_filename=output_filename,
                     response_content=resposta
